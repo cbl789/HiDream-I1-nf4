@@ -8,13 +8,13 @@ from .nf4 import *
 
 # Resolution options
 RESOLUTION_OPTIONS = [
-    "1024 × 1024 (Square)",
-    "768 × 1360 (Portrait)",
-    "1360 × 768 (Landscape)",
-    "880 × 1168 (Portrait)",
-    "1168 × 880 (Landscape)",
-    "1248 × 832 (Landscape)",
-    "832 × 1248 (Portrait)"
+    "1024 × 1024 (Square, 1:1)",
+    "768 × 1360 (Portrait, 9:16)",
+    "1360 × 768 (Landscape, 16:9)",
+    "880 × 1168 (Portrait, 3:4)",
+    "1168 × 880 (Landscape, 4:3)",
+    "1248 × 832 (Landscape, 3:2)",
+    "832 × 1248 (Portrait, 2:3)"
 ]
 
 # Parse resolution string to get height and width
@@ -22,22 +22,26 @@ def parse_resolution(resolution_str):
     return tuple(map(int, resolution_str.split("(")[0].strip().split(" × ")))
 
 
-def gen_img_helper(model, prompt, res, seed):
+def gen_img_helper(model, prompt, res, seed, progress=gr.Progress()):
     global pipe, current_model
     log_stream = io.StringIO()
     with contextlib.redirect_stdout(log_stream):
         # 1. Check if the model matches loaded model, load the model if not
         if model != current_model:
+            progress(0.1, desc=f"Unloading model {current_model}...")
             print(f"Unloading model {current_model}...")
             del pipe
             torch.cuda.empty_cache()
+            progress(0.3, desc=f"Loading model {model}...")
             print(f"Loading model {model}...")
             pipe, _ = load_models(model)
             current_model = model
             print("Model loaded successfully!")
         # 2. Generate image
+        progress(0.6, desc="Generating image...")
         res = parse_resolution(res)
-        image, seed_used = generate_image(pipe, model, prompt, res, seed)
+        image, seed_used = generate_image(pipe, model, prompt, res, seed, progress=progress)
+        progress(1.0, desc="Done!")
     log_contents = log_stream.getvalue()
     return image, seed_used, log_contents
 
@@ -74,7 +78,7 @@ if __name__ == "__main__":
                     choices=RESOLUTION_OPTIONS,
                     value=RESOLUTION_OPTIONS[0],
                     label="Resolution",
-                    info="Select image resolution"
+                    info="Select image resolution (aspect ratio shown)"
                 )
                 
                 seed = gr.Number(
@@ -89,12 +93,12 @@ if __name__ == "__main__":
             with gr.Column():
                 # Explicitly set format to PNG for output images
                 output_image = gr.Image(label="Generated Image", type="pil", format="png")
-                log_output = gr.Textbox(label="Generation Log", lines=10, interactive=False)
         
         generate_btn.click(
-            fn=gen_img_helper,
+            fn=lambda *args, **kwargs: gen_img_helper(*args, **kwargs)[:2],
             inputs=[model_type, prompt, resolution, seed],
-            outputs=[output_image, seed_used, log_output]
+            outputs=[output_image, seed_used],
+            show_progress=True
         )
 
     # Allow remote access for older Gradio versions using server_name and server_port
