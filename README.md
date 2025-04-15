@@ -13,7 +13,8 @@
   - Live progress updates during image generation, visible under the "Generate Image" button.
 - **Clean Gradio UI:**
   - Only a single progress bar is shown (no duplicates in image/log areas).
-  - **Remote Access:**
+  - **Note:** Due to Gradio's current design, a progress bar will also appear inside the "Generated Image" field while the image is being created. This cannot be disabled or moved with the current Gradio API.
+- **Remote Access:**
   - You can access the Gradio UI from other machines on your network (not just localhost).
 - **Easy to Use:**
   - Just run the dashboard and enjoy a smooth, interactive experience.

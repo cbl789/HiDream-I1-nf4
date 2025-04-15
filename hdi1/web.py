@@ -24,26 +24,22 @@ def parse_resolution(resolution_str):
 
 def gen_img_helper(model, prompt, res, seed, progress=gr.Progress()):
     global pipe, current_model
-    log_stream = io.StringIO()
-    with contextlib.redirect_stdout(log_stream):
+    # Suppress all print/log output so nothing is returned to Gradio outputs
+    with contextlib.redirect_stdout(io.StringIO()):
         # 1. Check if the model matches loaded model, load the model if not
         if model != current_model:
             progress(0.1, desc=f"Unloading model {current_model}...")
-            print(f"Unloading model {current_model}...")
             del pipe
             torch.cuda.empty_cache()
             progress(0.3, desc=f"Loading model {model}...")
-            print(f"Loading model {model}...")
             pipe, _ = load_models(model)
             current_model = model
-            print("Model loaded successfully!")
         # 2. Generate image
         progress(0.6, desc="Generating image...")
         res = parse_resolution(res)
         image, seed_used = generate_image(pipe, model, prompt, res, seed, progress=progress)
         progress(1.0, desc="Done!")
-    log_contents = log_stream.getvalue()
-    return image, seed_used, log_contents
+    return image, seed_used
 
 
 if __name__ == "__main__":
