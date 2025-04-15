@@ -1,6 +1,8 @@
 import torch
 import gradio as gr
 import logging
+import io
+import contextlib
 
 from .nf4 import *
 
@@ -22,21 +24,22 @@ def parse_resolution(resolution_str):
 
 def gen_img_helper(model, prompt, res, seed):
     global pipe, current_model
-
-    # 1. Check if the model matches loaded model, load the model if not
-    if model != current_model:
-        print(f"Unloading model {current_model}...")
-        del pipe
-        torch.cuda.empty_cache()
-        
-        print(f"Loading model {model}...")
-        pipe, _ = load_models(model)
-        current_model = model
-        print("Model loaded successfully!")
-
-    # 2. Generate image
-    res = parse_resolution(res)
-    return generate_image(pipe, model, prompt, res, seed)
+    log_stream = io.StringIO()
+    with contextlib.redirect_stdout(log_stream):
+        # 1. Check if the model matches loaded model, load the model if not
+        if model != current_model:
+            print(f"Unloading model {current_model}...")
+            del pipe
+            torch.cuda.empty_cache()
+            print(f"Loading model {model}...")
+            pipe, _ = load_models(model)
+            current_model = model
+            print("Model loaded successfully!")
+        # 2. Generate image
+        res = parse_resolution(res)
+        image, seed_used = generate_image(pipe, model, prompt, res, seed)
+    log_contents = log_stream.getvalue()
+    return image, seed_used, log_contents
 
 
 if __name__ == "__main__":
@@ -84,12 +87,15 @@ if __name__ == "__main__":
                 seed_used = gr.Number(label="Seed Used", interactive=False)
                 
             with gr.Column():
-                output_image = gr.Image(label="Generated Image", type="pil")
+                # Explicitly set format to PNG for output images
+                output_image = gr.Image(label="Generated Image", type="pil", format="png")
+                log_output = gr.Textbox(label="Generation Log", lines=10, interactive=False)
         
         generate_btn.click(
             fn=gen_img_helper,
             inputs=[model_type, prompt, resolution, seed],
-            outputs=[output_image, seed_used]
+            outputs=[output_image, seed_used, log_output]
         )
 
-    demo.launch()
+    # Allow remote access for older Gradio versions using server_name and server_port
+    demo.launch(server_name='0.0.0.0', server_port=7860, share=False)
